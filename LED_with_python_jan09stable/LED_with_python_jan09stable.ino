@@ -108,7 +108,7 @@ void loop() {
     ledChangeToggle = !ledChangeToggle;
     analogWrite(LED_PINB, 0);
     analogWrite(LED_PIN_EMBEDED, 0);
-    valSend[1] = 0; //Отправляем в Python от
+    //valSend[1] = 0; //Отправляем в Python от
     //serialData.Send(valSend);
   }
   if (ledToggle) {
