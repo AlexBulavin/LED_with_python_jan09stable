@@ -1,8 +1,8 @@
 #include <cvzone.h>
-#define LED_PINB 3
+#define LED_PINB 3 //Внешний RGB светодиод на 3, 4 и 5 пинах
 #define LED_PINR 5
 #define LED_PING 4
-#define LED_PIN_EMBEDED 6
+#define LED_PIN_EMBEDED 6 //Пин встроенного светодиода на MKR 1000
 #include "led_indication.h"
 
 #include <BfButton.h> //Для работы энкодера
@@ -32,15 +32,15 @@ int fading_brightness = 0;    // how bright the LED is
 int fadeAmount = 5;    // how many points to fade the LED by one step (30ms)
 
 
-SerialData serialData(1, 1); //(numOfValsRec,digitsPerValRec) в параметре digitsPerValRec указываем размерность числа, которое нам нужно для передачи данных
-//нампример, для передачи 0 или 1 достаточна размерность в 1 цифру, для 10 - 99 в 2 цифры, для 100-999 в 3 цифры и так далее
-//В нашем случае для управления светодиодом достаточно 1 цифры, поэтому serialData(1, 1);
+SerialData serialData(1, 1); //(numOfValsRec,digitsPerValRec) в параметре digitsPerValRec указываем разрядность числа, которое нам нужно для передачи данных
+//нампример, для передачи от 0 до 9 достаточна размерность в 1 разряд, для 10 - 99 в 2 разряда, для 100-999 в 3 разряда и так далее
+//В нашем случае для управления светодиодом достаточно 1, поэтому serialData(1, 1);
 
 int valsRec[1]; // array of int with size numOfValsRec
 
 int valSend[2];// array of sending data
 
-int getTimer = 300;
+int getTimer = 300;//Частота передачи данных из микроконтроллера в Python
 unsigned long getRequestTime = 0;
 
 bool ledToggle = false;
@@ -51,30 +51,31 @@ int oldValue = 127;
 void pressHandler (BfButton *btn, BfButton::press_pattern_t pattern) {
   switch (pattern) {
     case BfButton::SINGLE_PRESS:
-//      Serial.println("Single push");
+//      Serial.println("Single push"); //Если оставить выдачу в серийный порт, то она будет передаваться и в Python через serialData.Send(valSend); (ниже в коде). Это ложные данные
+      //которые не нужны. Поэтому для первичной отладки без связки с Python можно раскомментировать и выводить данные в монитор серийного порта, а для реальной работы
+      //нужно закомментить везде в коде ниже.
       ledToggle = !ledToggle;
 //      Serial.print("Toggle = ");
 //      Serial.println(ledToggle);
       if (ledToggle) {
-      valSend[0] = 1;
-      ledChangeToggle = true;
+      valSend[0] = 1;//Фиксируем одинарное нажатие
+      ledChangeToggle = true;//Установили логическую 1 в ledChangeToggle чтобы ниже в коде только однократно включить светодиоды, а не в каждом проходе loop цикла
       } else {
       valSend[0] = 0;
       }
-      //Отправляем в Python статус LED (ON/OFF)
-      //serialData.Send(valSend);
+
       break;
 
     case BfButton::DOUBLE_PRESS:
 //      Serial.println("Double push");
-      valSend[0] = 2; //Отправляем в Python нажатие
+      valSend[0] = 2; //Фиксируем двойное нажатие
      // serialData.Send(valSend);
       break;
 
     case BfButton::LONG_PRESS:
 //      Serial.println("Long push");
-      valSend[0] = 3; //Отправляем в Python нажатие
-      //serialData.Send(valSend);
+      valSend[0] = 3; //Фиксируем длинное нажатие
+
       break;
   }
 
@@ -105,11 +106,9 @@ void loop() {
   btn.read();
 
   if (!ledToggle && ledChangeToggle) {
-    ledChangeToggle = !ledChangeToggle;
+    ledChangeToggle = !ledChangeToggle;//Зафиксировали, что изменение состояния произведено и повторно выполнять этот код при последующем проходе по циклу будет не нужно.
     analogWrite(LED_PINB, 0);
     analogWrite(LED_PIN_EMBEDED, 0);
-    //valSend[1] = 0; //Отправляем в Python от
-    //serialData.Send(valSend);
   }
   if (ledToggle) {
     analogWrite(LED_PINB, oldValue);
@@ -135,22 +134,22 @@ void loop() {
     }
 //    Serial.print("encCounter = ");
 //    Serial.println(encCounter);
-    oldValue = (encCounter + 100) * 1.28; //Преобразуем шкалу -100... +100 к 0...255
+    oldValue = (encCounter + 100) * 1.28; //Преобразуем шкалу -100... +100 к 0...255 для того, чтобы соответствовать диапазону работы analogWrite(LED_PINB, oldValue);
         if (ledToggle) {
           analogWrite(LED_PINB, oldValue);
           analogWrite(LED_PIN_EMBEDED, oldValue); //
         }
-    valSend[1] = encCounter; //Отправляем в Python показание энкодера
-    //serialData.Send(valSend);
+    valSend[1] = encCounter; //Фиксируем показание энкодера
     encLastState = encState;
   }
 
   if ((millis() - getRequestTime) > getTimer) {
-    serialData.Send(valSend);
+    serialData.Send(valSend);//Единая точка передачи данных в Python в loop цикле.
 //    Serial.print("Отправляем на сервер ");
 //    Serial.print(valSend[0]);
 //    Serial.println(valSend[1]);
-    /*
+    
+    /* Ниже приведён фрагмент кода на случай передачи данных из Python в микроконтроллер. Соответствующие команды управления передаются на светодиоды.
     serialData.Get(valsRec);
 
     if (valsRec[0] != oldValue) {
@@ -164,9 +163,7 @@ void loop() {
       //      digitalWrite(LED_PING, valsRec[0]);
       //      digitalWrite(LED_PINB, valsRec[0]);
       oldValue = valsRec[0];
-    
-
-   
+       
   }*/
    getRequestTime = millis();
   }
